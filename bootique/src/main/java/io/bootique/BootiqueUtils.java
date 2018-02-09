@@ -1,8 +1,12 @@
 package io.bootique;
 
+import com.google.inject.Module;
+
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.stream.Collectors.toList;
 
 /**
  * Utils methods which used inside {@link Bootique} class, but can be moved outside.
@@ -16,20 +20,30 @@ final class BootiqueUtils {
     }
 
     static Collection<BQModuleProvider> moduleProviderDependencies(Collection<BQModuleProvider> rootSet) {
-        return moduleProviderDependencies(rootSet, new HashSet<>());
+        return moduleProviderDependencies(rootSet, new HashMap<>())
+                .entrySet()
+                .stream()
+                .map(Map.Entry::getValue)
+                .collect(toList());
     }
 
-    private static Collection<BQModuleProvider> moduleProviderDependencies(
+    private static Map<Class<? extends Module>, BQModuleProvider> moduleProviderDependencies(
             Collection<BQModuleProvider> rootSet,
-            Set<BQModuleProvider> processed) {
+            Map<Class<? extends Module>, BQModuleProvider> processed) {
 
         for (BQModuleProvider moduleProvider : rootSet) {
-            if (!processed.contains(moduleProvider)) {
-                processed.add(moduleProvider);
+            // check if current module provider already processed
+            if (processed.containsValue(moduleProvider)) continue;
+
+            // Because RuntimeModuleMerger Bootique uses Module Class as unique key.
+            final Class<? extends Module> moduleClass = moduleProvider.module().getClass();
+
+            if (!processed.containsKey(moduleClass)) {
+                processed.put(moduleClass, moduleProvider);
 
                 final Collection<BQModuleProvider> dependencies = moduleProvider.dependencies();
                 if (!dependencies.isEmpty()) {
-                    processed.addAll(moduleProviderDependencies(dependencies, processed));
+                    processed.putAll(moduleProviderDependencies(dependencies, processed));
                 }
             }
         }
